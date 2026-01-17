@@ -1,386 +1,566 @@
 /**
  * PatternGenerator - Generates 3D particle positions for various shapes
- * Each pattern returns an array of {x, y, z} positions
+ * Uses structured UV surface distribution for flowing wireframe aesthetics
  */
 
 export class PatternGenerator {
     /**
-     * Generate positions for a spherical distribution
-     * @param {number} count - Number of particles
-     * @param {number} radius - Sphere radius
-     * @returns {Float32Array} - Position array [x1,y1,z1, x2,y2,z2, ...]
+     * Generate positions for a spherical surface distribution
+     * Creates flowing latitude/longitude pattern
      */
     static sphere(count, radius = 50) {
         const positions = new Float32Array(count * 3);
 
-        for (let i = 0; i < count; i++) {
-            // Fibonacci sphere distribution for even spacing
-            const phi = Math.acos(1 - 2 * (i + 0.5) / count);
-            const theta = Math.PI * (1 + Math.sqrt(5)) * i;
+        // Calculate grid dimensions for UV distribution
+        const aspectRatio = 2; // longitude wraps twice as much as latitude
+        const gridV = Math.ceil(Math.sqrt(count / aspectRatio));
+        const gridU = Math.ceil(count / gridV);
 
-            const r = radius * Math.cbrt(Math.random()); // Volume distribution
-            const x = r * Math.sin(phi) * Math.cos(theta);
-            const y = r * Math.sin(phi) * Math.sin(theta);
-            const z = r * Math.cos(phi);
+        let idx = 0;
+        for (let i = 0; i < gridV && idx < count; i++) {
+            for (let j = 0; j < gridU && idx < count; j++) {
+                // UV coordinates with slight noise for organic feel
+                const u = (j / gridU) * Math.PI * 2;
+                const v = (i / (gridV - 1)) * Math.PI;
 
-            positions[i * 3] = x;
-            positions[i * 3 + 1] = y;
-            positions[i * 3 + 2] = z;
+                // Small perturbation for natural look
+                const noiseU = (Math.random() - 0.5) * 0.05;
+                const noiseV = (Math.random() - 0.5) * 0.05;
+
+                const phi = u + noiseU;
+                const theta = v + noiseV;
+
+                // Spherical to Cartesian
+                const x = radius * Math.sin(theta) * Math.cos(phi);
+                const y = radius * Math.cos(theta);
+                const z = radius * Math.sin(theta) * Math.sin(phi);
+
+                positions[idx * 3] = x;
+                positions[idx * 3 + 1] = y;
+                positions[idx * 3 + 2] = z;
+                idx++;
+            }
         }
 
         return positions;
     }
 
     /**
-     * Generate positions for a cubic distribution
-     * @param {number} count - Number of particles
-     * @param {number} size - Cube size
-     * @returns {Float32Array} - Position array
-     */
-    static cube(count, size = 80) {
-        const positions = new Float32Array(count * 3);
-        const half = size / 2;
-
-        for (let i = 0; i < count; i++) {
-            // Random distribution within cube volume
-            positions[i * 3] = (Math.random() - 0.5) * size;
-            positions[i * 3 + 1] = (Math.random() - 0.5) * size;
-            positions[i * 3 + 2] = (Math.random() - 0.5) * size;
-        }
-
-        return positions;
-    }
-
-    /**
-     * Generate positions for a heart shape
-     * @param {number} count - Number of particles
-     * @param {number} scale - Heart scale
-     * @returns {Float32Array} - Position array
-     */
-    static heart(count, scale = 3) {
-        const positions = new Float32Array(count * 3);
-
-        for (let i = 0; i < count; i++) {
-            // Parametric heart surface equation
-            const u = Math.random() * Math.PI * 2;
-            const v = Math.random() * Math.PI;
-
-            // Heart shape parametric equations
-            const x = 16 * Math.pow(Math.sin(u), 3);
-            const y = 13 * Math.cos(u) - 5 * Math.cos(2 * u) - 2 * Math.cos(3 * u) - Math.cos(4 * u);
-            const z = (Math.random() - 0.5) * 15; // Add depth
-
-            positions[i * 3] = x * scale;
-            positions[i * 3 + 1] = y * scale;
-            positions[i * 3 + 2] = z * scale;
-        }
-
-        return positions;
-    }
-
-    /**
-     * Generate positions for a spiral galaxy
-     * @param {number} count - Number of particles
-     * @param {number} radius - Galaxy radius
-     * @returns {Float32Array} - Position array
-     */
-    static galaxy(count, radius = 60) {
-        const positions = new Float32Array(count * 3);
-        const arms = 3;
-        const armSpread = 0.5;
-        const armOffset = (2 * Math.PI) / arms;
-
-        for (let i = 0; i < count; i++) {
-            // Distance from center (more particles near center)
-            const distance = Math.pow(Math.random(), 0.5) * radius;
-
-            // Base angle for spiral
-            const baseAngle = distance * 0.15 + (Math.floor(Math.random() * arms) * armOffset);
-
-            // Add randomness for arm spread
-            const spreadAngle = baseAngle + (Math.random() - 0.5) * armSpread * (1 - distance / radius);
-
-            const x = Math.cos(spreadAngle) * distance;
-            const z = Math.sin(spreadAngle) * distance;
-            const y = (Math.random() - 0.5) * 5 * (1 - distance / radius); // Thin disk
-
-            positions[i * 3] = x;
-            positions[i * 3 + 1] = y;
-            positions[i * 3 + 2] = z;
-        }
-
-        return positions;
-    }
-
-    /**
-     * Generate positions for a DNA double helix
-     * @param {number} count - Number of particles
-     * @param {number} height - Helix height
-     * @returns {Float32Array} - Position array
-     */
-    static dna(count, height = 100) {
-        const positions = new Float32Array(count * 3);
-        const radius = 15;
-        const turns = 4;
-
-        for (let i = 0; i < count; i++) {
-            // Position along helix
-            const t = (i / count) * turns * Math.PI * 2;
-            const y = ((i / count) - 0.5) * height;
-
-            // Two strands of the helix
-            const strand = Math.random() > 0.5 ? 0 : Math.PI;
-            const noise = (Math.random() - 0.5) * 3;
-
-            const x = Math.cos(t + strand) * radius + noise;
-            const z = Math.sin(t + strand) * radius + noise;
-
-            positions[i * 3] = x;
-            positions[i * 3 + 1] = y;
-            positions[i * 3 + 2] = z;
-        }
-
-        return positions;
-    }
-
-    /**
-     * Generate positions for a torus (donut) shape
-     * @param {number} count - Number of particles
-     * @param {number} majorRadius - Distance from center to tube center
-     * @param {number} minorRadius - Tube radius
-     * @returns {Float32Array} - Position array
+     * Generate positions for a torus surface
+     * Creates flowing ring pattern
      */
     static torus(count, majorRadius = 35, minorRadius = 15) {
         const positions = new Float32Array(count * 3);
 
-        for (let i = 0; i < count; i++) {
-            // Parametric torus equations
-            const u = Math.random() * Math.PI * 2; // Around the tube
-            const v = Math.random() * Math.PI * 2; // Around the torus
+        // Grid dimensions
+        const gridU = Math.ceil(Math.sqrt(count * 1.5));
+        const gridV = Math.ceil(count / gridU);
 
-            const x = (majorRadius + minorRadius * Math.cos(v)) * Math.cos(u);
-            const y = minorRadius * Math.sin(v);
-            const z = (majorRadius + minorRadius * Math.cos(v)) * Math.sin(u);
+        let idx = 0;
+        for (let i = 0; i < gridU && idx < count; i++) {
+            for (let j = 0; j < gridV && idx < count; j++) {
+                const u = (i / gridU) * Math.PI * 2;
+                const v = (j / gridV) * Math.PI * 2;
 
-            positions[i * 3] = x;
-            positions[i * 3 + 1] = y;
-            positions[i * 3 + 2] = z;
+                // Small noise
+                const noiseU = (Math.random() - 0.5) * 0.03;
+                const noiseV = (Math.random() - 0.5) * 0.03;
+
+                const uN = u + noiseU;
+                const vN = v + noiseV;
+
+                const x = (majorRadius + minorRadius * Math.cos(vN)) * Math.cos(uN);
+                const y = minorRadius * Math.sin(vN);
+                const z = (majorRadius + minorRadius * Math.cos(vN)) * Math.sin(uN);
+
+                positions[idx * 3] = x;
+                positions[idx * 3 + 1] = y;
+                positions[idx * 3 + 2] = z;
+                idx++;
+            }
         }
 
         return positions;
     }
 
     /**
-     * Generate positions for a 3D star shape
-     * @param {number} count - Number of particles
-     * @param {number} outerRadius - Outer point radius
-     * @param {number} innerRadius - Inner valley radius
-     * @returns {Float32Array} - Position array
+     * Saturn - Sphere with rings
      */
-    static star(count, outerRadius = 50, innerRadius = 20) {
+    static saturn(count, radius = 40) {
         const positions = new Float32Array(count * 3);
-        const points = 5;
 
-        for (let i = 0; i < count; i++) {
-            // Random spherical coordinates
-            const phi = Math.random() * Math.PI * 2;
-            const theta = Math.acos(2 * Math.random() - 1);
+        // 70% sphere, 30% ring
+        const sphereCount = Math.floor(count * 0.7);
+        const ringCount = count - sphereCount;
 
-            // Modulate radius based on angle to create star shape
-            const angle = phi * points;
-            const radiusMod = (Math.cos(angle) + 1) / 2; // 0 to 1
-            const radius = innerRadius + (outerRadius - innerRadius) * radiusMod;
+        // Sphere portion
+        const gridV = Math.ceil(Math.sqrt(sphereCount / 2));
+        const gridU = Math.ceil(sphereCount / gridV);
 
-            // Add some randomness
-            const r = radius * (0.8 + Math.random() * 0.4);
+        let idx = 0;
+        for (let i = 0; i < gridV && idx < sphereCount; i++) {
+            for (let j = 0; j < gridU && idx < sphereCount; j++) {
+                const u = (j / gridU) * Math.PI * 2;
+                const v = (i / (gridV - 1)) * Math.PI;
 
-            const x = r * Math.sin(theta) * Math.cos(phi);
-            const y = r * Math.sin(theta) * Math.sin(phi);
-            const z = r * Math.cos(theta);
+                const noise = (Math.random() - 0.5) * 0.03;
+                const phi = u + noise;
+                const theta = v + noise;
 
-            positions[i * 3] = x;
-            positions[i * 3 + 1] = y;
-            positions[i * 3 + 2] = z;
+                const x = radius * Math.sin(theta) * Math.cos(phi);
+                const y = radius * Math.cos(theta);
+                const z = radius * Math.sin(theta) * Math.sin(phi);
+
+                positions[idx * 3] = x;
+                positions[idx * 3 + 1] = y;
+                positions[idx * 3 + 2] = z;
+                idx++;
+            }
+        }
+
+        // Ring portion
+        const ringInner = radius * 1.4;
+        const ringOuter = radius * 2.2;
+        const ringGridU = Math.ceil(Math.sqrt(ringCount * 3));
+        const ringGridV = Math.ceil(ringCount / ringGridU);
+
+        for (let i = 0; i < ringGridV && idx < count; i++) {
+            for (let j = 0; j < ringGridU && idx < count; j++) {
+                const angle = (j / ringGridU) * Math.PI * 2;
+                const r = ringInner + (i / ringGridV) * (ringOuter - ringInner);
+
+                const noise = (Math.random() - 0.5) * 0.02;
+
+                const x = Math.cos(angle + noise) * r;
+                const y = (Math.random() - 0.5) * 2; // Very thin
+                const z = Math.sin(angle + noise) * r;
+
+                positions[idx * 3] = x;
+                positions[idx * 3 + 1] = y;
+                positions[idx * 3 + 2] = z;
+                idx++;
+            }
         }
 
         return positions;
     }
 
     /**
-     * Generate positions for a wave pattern
-     * @param {number} count - Number of particles
-     * @param {number} width - Wave width
-     * @param {number} depth - Wave depth
-     * @returns {Float32Array} - Position array
+     * Helix / DNA double helix
      */
-    static wave(count, width = 100, depth = 60) {
+    static helix(count, height = 100) {
         const positions = new Float32Array(count * 3);
-        const amplitude = 20;
-        const frequency = 0.08;
+        const radius = 20;
+        const turns = 4;
 
-        for (let i = 0; i < count; i++) {
-            // Grid distribution with wave height
-            const x = (Math.random() - 0.5) * width;
-            const z = (Math.random() - 0.5) * depth;
+        // Two strands
+        const perStrand = Math.floor(count / 2);
 
-            // Sinusoidal wave with multiple frequencies
-            const wave1 = Math.sin(x * frequency) * Math.cos(z * frequency) * amplitude;
-            const wave2 = Math.sin(x * frequency * 2 + z * frequency) * amplitude * 0.5;
-            const y = wave1 + wave2;
+        let idx = 0;
+        for (let strand = 0; strand < 2; strand++) {
+            const offset = strand * Math.PI;
 
-            positions[i * 3] = x;
-            positions[i * 3 + 1] = y;
-            positions[i * 3 + 2] = z;
+            for (let i = 0; i < perStrand && idx < count; i++) {
+                const t = i / perStrand;
+                const angle = t * turns * Math.PI * 2 + offset;
+                const y = (t - 0.5) * height;
+
+                const noise = (Math.random() - 0.5) * 0.02;
+
+                const x = Math.cos(angle + noise) * radius;
+                const z = Math.sin(angle + noise) * radius;
+
+                positions[idx * 3] = x;
+                positions[idx * 3 + 1] = y;
+                positions[idx * 3 + 2] = z;
+                idx++;
+            }
         }
 
         return positions;
     }
 
     /**
-     * Generate positions for a pyramid shape
-     * @param {number} count - Number of particles
-     * @param {number} size - Pyramid size
-     * @returns {Float32Array} - Position array
+     * Galaxy spiral
+     */
+    static galaxy(count, radius = 60) {
+        const positions = new Float32Array(count * 3);
+        const arms = 3;
+        const armOffset = (2 * Math.PI) / arms;
+
+        // Distribute along spiral arms
+        const perArm = Math.floor(count / arms);
+
+        let idx = 0;
+        for (let arm = 0; arm < arms; arm++) {
+            for (let i = 0; i < perArm && idx < count; i++) {
+                const t = i / perArm;
+                const distance = t * radius;
+
+                // Spiral angle increases with distance
+                const spiralAngle = t * Math.PI * 2 + arm * armOffset;
+
+                // Add slight spread
+                const spread = (Math.random() - 0.5) * 0.3 * (1 - t * 0.5);
+                const angle = spiralAngle + spread;
+
+                const x = Math.cos(angle) * distance;
+                const z = Math.sin(angle) * distance;
+                const y = (Math.random() - 0.5) * 3 * (1 - t * 0.7); // Thinner at edges
+
+                positions[idx * 3] = x;
+                positions[idx * 3 + 1] = y;
+                positions[idx * 3 + 2] = z;
+                idx++;
+            }
+        }
+
+        // Fill remaining with center bulge
+        while (idx < count) {
+            const r = Math.random() * radius * 0.2;
+            const angle = Math.random() * Math.PI * 2;
+
+            positions[idx * 3] = Math.cos(angle) * r;
+            positions[idx * 3 + 1] = (Math.random() - 0.5) * 8;
+            positions[idx * 3 + 2] = Math.sin(angle) * r;
+            idx++;
+        }
+
+        return positions;
+    }
+
+    /**
+     * Cube - wireframe style surface
+     */
+    static cube(count, size = 70) {
+        const positions = new Float32Array(count * 3);
+        const half = size / 2;
+
+        // Distribute across 6 faces
+        const perFace = Math.floor(count / 6);
+        const gridSize = Math.ceil(Math.sqrt(perFace));
+
+        const faces = [
+            { axis: 'x', sign: 1 },
+            { axis: 'x', sign: -1 },
+            { axis: 'y', sign: 1 },
+            { axis: 'y', sign: -1 },
+            { axis: 'z', sign: 1 },
+            { axis: 'z', sign: -1 }
+        ];
+
+        let idx = 0;
+        for (const face of faces) {
+            for (let i = 0; i < gridSize && idx < count; i++) {
+                for (let j = 0; j < gridSize && idx < count; j++) {
+                    const u = (i / (gridSize - 1)) * 2 - 1;
+                    const v = (j / (gridSize - 1)) * 2 - 1;
+
+                    const noise = (Math.random() - 0.5) * 0.02;
+
+                    let x, y, z;
+                    if (face.axis === 'x') {
+                        x = face.sign * half;
+                        y = (u + noise) * half;
+                        z = (v + noise) * half;
+                    } else if (face.axis === 'y') {
+                        x = (u + noise) * half;
+                        y = face.sign * half;
+                        z = (v + noise) * half;
+                    } else {
+                        x = (u + noise) * half;
+                        y = (v + noise) * half;
+                        z = face.sign * half;
+                    }
+
+                    positions[idx * 3] = x;
+                    positions[idx * 3 + 1] = y;
+                    positions[idx * 3 + 2] = z;
+                    idx++;
+                }
+            }
+        }
+
+        return positions;
+    }
+
+    /**
+     * Pyramid - surface distribution
      */
     static pyramid(count, size = 60) {
         const positions = new Float32Array(count * 3);
         const height = size * 1.2;
+        const half = size / 2;
 
-        for (let i = 0; i < count; i++) {
-            // Random height along pyramid
-            const t = Math.random();
-            const y = (t - 0.5) * height;
+        // 4 triangular faces + 1 square base
+        const perFace = Math.floor(count / 5);
 
-            // Width decreases with height
-            const widthAtHeight = size * (1 - t) * 0.8;
+        let idx = 0;
 
-            // Square base
-            const side = Math.floor(Math.random() * 4);
-            let x, z;
+        // Base (square grid)
+        const baseGrid = Math.ceil(Math.sqrt(perFace));
+        for (let i = 0; i < baseGrid && idx < perFace; i++) {
+            for (let j = 0; j < baseGrid && idx < perFace; j++) {
+                const x = ((i / (baseGrid - 1)) - 0.5) * size;
+                const z = ((j / (baseGrid - 1)) - 0.5) * size;
+                const noise = (Math.random() - 0.5) * 0.02 * size;
 
-            if (side === 0) {
-                x = (Math.random() - 0.5) * widthAtHeight;
-                z = widthAtHeight / 2;
-            } else if (side === 1) {
-                x = (Math.random() - 0.5) * widthAtHeight;
-                z = -widthAtHeight / 2;
-            } else if (side === 2) {
-                x = widthAtHeight / 2;
-                z = (Math.random() - 0.5) * widthAtHeight;
-            } else {
-                x = -widthAtHeight / 2;
-                z = (Math.random() - 0.5) * widthAtHeight;
+                positions[idx * 3] = x + noise;
+                positions[idx * 3 + 1] = -height / 2;
+                positions[idx * 3 + 2] = z + noise;
+                idx++;
             }
+        }
 
-            positions[i * 3] = x;
-            positions[i * 3 + 1] = y;
-            positions[i * 3 + 2] = z;
+        // 4 triangular faces
+        const trianglePoints = [
+            { x1: -half, z1: -half, x2: half, z2: -half }, // front
+            { x1: half, z1: -half, x2: half, z2: half },   // right
+            { x1: half, z1: half, x2: -half, z2: half },   // back
+            { x1: -half, z1: half, x2: -half, z2: -half }  // left
+        ];
+
+        const faceGrid = Math.ceil(Math.sqrt(perFace));
+        for (const tri of trianglePoints) {
+            for (let i = 0; i < faceGrid && idx < count; i++) {
+                for (let j = 0; j <= i && idx < count; j++) {
+                    const t = i / (faceGrid - 1); // 0 at base, 1 at apex
+                    const s = i > 0 ? j / i : 0.5;
+
+                    const baseX = tri.x1 + (tri.x2 - tri.x1) * s;
+                    const baseZ = tri.z1 + (tri.z2 - tri.z1) * s;
+
+                    const x = baseX * (1 - t);
+                    const z = baseZ * (1 - t);
+                    const y = -height / 2 + t * height;
+
+                    const noise = (Math.random() - 0.5) * 0.02;
+
+                    positions[idx * 3] = x + noise * size;
+                    positions[idx * 3 + 1] = y;
+                    positions[idx * 3 + 2] = z + noise * size;
+                    idx++;
+                }
+            }
         }
 
         return positions;
     }
 
     /**
-     * Generate positions for an infinity symbol
-     * @param {number} count - Number of particles
-     * @param {number} size - Symbol size
-     * @returns {Float32Array} - Position array
+     * Heart shape - surface distribution
+     */
+    static heart(count, scale = 3) {
+        const positions = new Float32Array(count * 3);
+
+        const gridU = Math.ceil(Math.sqrt(count * 2));
+        const gridV = Math.ceil(count / gridU);
+
+        let idx = 0;
+        for (let i = 0; i < gridU && idx < count; i++) {
+            for (let j = 0; j < gridV && idx < count; j++) {
+                const u = (i / gridU) * Math.PI * 2;
+                const v = (j / gridV) * Math.PI - Math.PI / 2;
+
+                const noise = (Math.random() - 0.5) * 0.03;
+
+                // Heart parametric equations
+                const x = 16 * Math.pow(Math.sin(u + noise), 3);
+                const y = 13 * Math.cos(u) - 5 * Math.cos(2 * u) - 2 * Math.cos(3 * u) - Math.cos(4 * u);
+                const z = Math.sin(v + noise) * 8;
+
+                positions[idx * 3] = x * scale;
+                positions[idx * 3 + 1] = y * scale;
+                positions[idx * 3 + 2] = z * scale;
+                idx++;
+            }
+        }
+
+        return positions;
+    }
+
+    /**
+     * Star shape
+     */
+    static star(count, outerRadius = 50, innerRadius = 25) {
+        const positions = new Float32Array(count * 3);
+        const points = 5;
+
+        const gridU = Math.ceil(Math.sqrt(count));
+        const gridV = Math.ceil(count / gridU);
+
+        let idx = 0;
+        for (let i = 0; i < gridU && idx < count; i++) {
+            for (let j = 0; j < gridV && idx < count; j++) {
+                const u = (i / gridU) * Math.PI * 2;
+                const v = (j / (gridV - 1)) * Math.PI;
+
+                // Star modulation
+                const starAngle = u * points;
+                const radiusMod = (Math.cos(starAngle) + 1) / 2;
+                const radius = innerRadius + (outerRadius - innerRadius) * radiusMod;
+
+                const noise = (Math.random() - 0.5) * 0.03;
+
+                const x = radius * Math.sin(v) * Math.cos(u + noise);
+                const y = radius * Math.cos(v);
+                const z = radius * Math.sin(v) * Math.sin(u + noise);
+
+                positions[idx * 3] = x;
+                positions[idx * 3 + 1] = y;
+                positions[idx * 3 + 2] = z;
+                idx++;
+            }
+        }
+
+        return positions;
+    }
+
+    /**
+     * Wave surface
+     */
+    static wave(count, width = 100, depth = 80) {
+        const positions = new Float32Array(count * 3);
+        const amplitude = 15;
+
+        const gridX = Math.ceil(Math.sqrt(count * width / depth));
+        const gridZ = Math.ceil(count / gridX);
+
+        let idx = 0;
+        for (let i = 0; i < gridX && idx < count; i++) {
+            for (let j = 0; j < gridZ && idx < count; j++) {
+                const x = ((i / (gridX - 1)) - 0.5) * width;
+                const z = ((j / (gridZ - 1)) - 0.5) * depth;
+
+                // Multiple wave frequencies for organic look
+                const wave1 = Math.sin(x * 0.08) * Math.cos(z * 0.08) * amplitude;
+                const wave2 = Math.sin(x * 0.15 + z * 0.1) * amplitude * 0.4;
+                const y = wave1 + wave2;
+
+                const noise = (Math.random() - 0.5) * 0.5;
+
+                positions[idx * 3] = x + noise;
+                positions[idx * 3 + 1] = y + noise;
+                positions[idx * 3 + 2] = z + noise;
+                idx++;
+            }
+        }
+
+        return positions;
+    }
+
+    /**
+     * Infinity symbol
      */
     static infinity(count, size = 50) {
         const positions = new Float32Array(count * 3);
 
-        for (let i = 0; i < count; i++) {
-            // Lemniscate of Bernoulli (infinity symbol)
-            const t = (i / count) * Math.PI * 2;
-            const noise = (Math.random() - 0.5) * 8;
+        const gridU = Math.ceil(Math.sqrt(count * 2));
+        const gridV = Math.ceil(count / gridU);
 
-            const scale = size / (1 + Math.sin(t) * Math.sin(t));
-            const x = scale * Math.cos(t) + noise;
-            const y = (scale * Math.sin(t) * Math.cos(t)) + noise;
-            const z = (Math.random() - 0.5) * 15 + noise * 0.5;
+        let idx = 0;
+        for (let i = 0; i < gridU && idx < count; i++) {
+            for (let j = 0; j < gridV && idx < count; j++) {
+                const t = (i / gridU) * Math.PI * 2;
+                const thickness = (j / gridV) * 8 - 4;
 
-            positions[i * 3] = x;
-            positions[i * 3 + 1] = y;
-            positions[i * 3 + 2] = z;
+                const noise = (Math.random() - 0.5) * 0.02;
+
+                // Lemniscate
+                const scale = size / (1 + Math.sin(t) * Math.sin(t));
+                const x = scale * Math.cos(t + noise);
+                const y = scale * Math.sin(t) * Math.cos(t);
+                const z = thickness + noise * 5;
+
+                positions[idx * 3] = x;
+                positions[idx * 3 + 1] = y;
+                positions[idx * 3 + 2] = z;
+                idx++;
+            }
         }
 
         return positions;
     }
 
     /**
-     * Generate positions for a firework burst
-     * @param {number} count - Number of particles
-     * @param {number} radius - Burst radius
-     * @returns {Float32Array} - Position array
+     * Firework burst
      */
     static firework(count, radius = 55) {
         const positions = new Float32Array(count * 3);
-        const trails = 12; // Number of trails
+        const trails = 16;
+        const particlesPerTrail = Math.ceil(count / trails);
 
-        for (let i = 0; i < count; i++) {
-            const trail = i % trails;
-            const trailProgress = Math.pow(Math.random(), 0.5);
+        let idx = 0;
+        for (let trail = 0; trail < trails && idx < count; trail++) {
+            // Trail direction
+            const phi = (trail / trails) * Math.PI * 2;
+            const theta = Math.PI / 4 + Math.random() * Math.PI / 2;
 
-            // Base angle for this trail
-            const phi = (trail / trails) * Math.PI * 2 + (Math.random() - 0.5) * 0.3;
-            const theta = Math.random() * Math.PI;
+            for (let i = 0; i < particlesPerTrail && idx < count; i++) {
+                const t = i / particlesPerTrail;
+                const r = t * radius;
 
-            const r = radius * trailProgress;
-            const spread = (1 - trailProgress) * 0.2;
+                const noise = (Math.random() - 0.5) * 0.05 * (1 - t);
 
-            const x = r * Math.sin(theta) * Math.cos(phi) + (Math.random() - 0.5) * spread * radius;
-            const y = r * Math.cos(theta) + (Math.random() - 0.5) * spread * radius;
-            const z = r * Math.sin(theta) * Math.sin(phi) + (Math.random() - 0.5) * spread * radius;
+                const x = r * Math.sin(theta + noise) * Math.cos(phi + noise);
+                const y = r * Math.cos(theta + noise);
+                const z = r * Math.sin(theta + noise) * Math.sin(phi + noise);
 
-            positions[i * 3] = x;
-            positions[i * 3 + 1] = y;
-            positions[i * 3 + 2] = z;
+                positions[idx * 3] = x;
+                positions[idx * 3 + 1] = y;
+                positions[idx * 3 + 2] = z;
+                idx++;
+            }
         }
 
         return positions;
     }
 
     /**
-     * Generate positions for a tornado/vortex
-     * @param {number} count - Number of particles
-     * @param {number} height - Tornado height
-     * @returns {Float32Array} - Position array
+     * Tornado vortex
      */
     static tornado(count, height = 100) {
         const positions = new Float32Array(count * 3);
-        const baseRadius = 40;
-        const topRadius = 10;
-        const spirals = 6;
+        const baseRadius = 35;
+        const topRadius = 8;
+        const spirals = 5;
 
-        for (let i = 0; i < count; i++) {
-            // Position along height
-            const t = Math.random();
-            const y = (t - 0.5) * height;
+        const gridU = Math.ceil(Math.sqrt(count * 2));
+        const gridV = Math.ceil(count / gridU);
 
-            // Radius decreases towards top
-            const radius = baseRadius * (1 - t * 0.7) + topRadius * t;
+        let idx = 0;
+        for (let i = 0; i < gridV && idx < count; i++) {
+            for (let j = 0; j < gridU && idx < count; j++) {
+                const t = i / (gridV - 1); // Height parameter
+                const angle = (j / gridU) * Math.PI * 2 + t * spirals * Math.PI * 2;
 
-            // Spiral angle
-            const angle = t * spirals * Math.PI * 2 + (Math.random() - 0.5) * 1.5;
+                const radius = baseRadius * (1 - t) + topRadius * t;
+                const y = (t - 0.5) * height;
 
-            // Add some turbulence
-            const turbulence = (1 - t) * 8;
+                const noise = (Math.random() - 0.5) * 0.03;
 
-            const x = Math.cos(angle) * radius + (Math.random() - 0.5) * turbulence;
-            const z = Math.sin(angle) * radius + (Math.random() - 0.5) * turbulence;
+                const x = Math.cos(angle + noise) * radius;
+                const z = Math.sin(angle + noise) * radius;
 
-            positions[i * 3] = x;
-            positions[i * 3 + 1] = y;
-            positions[i * 3 + 2] = z;
+                positions[idx * 3] = x;
+                positions[idx * 3 + 1] = y;
+                positions[idx * 3 + 2] = z;
+                idx++;
+            }
         }
 
         return positions;
+    }
+
+    /**
+     * DNA double helix (alias for helix)
+     */
+    static dna(count, height = 100) {
+        return PatternGenerator.helix(count, height);
     }
 
     /**
      * Get pattern generator function by name
-     * @param {string} name - Pattern name
-     * @returns {Function} - Generator function
      */
     static getPattern(name) {
         const patterns = {
@@ -389,7 +569,9 @@ export class PatternGenerator {
             heart: PatternGenerator.heart,
             galaxy: PatternGenerator.galaxy,
             dna: PatternGenerator.dna,
+            helix: PatternGenerator.helix,
             torus: PatternGenerator.torus,
+            saturn: PatternGenerator.saturn,
             star: PatternGenerator.star,
             wave: PatternGenerator.wave,
             pyramid: PatternGenerator.pyramid,
@@ -403,9 +585,8 @@ export class PatternGenerator {
 
     /**
      * Get all available pattern names
-     * @returns {string[]} - Array of pattern names
      */
     static getPatternNames() {
-        return ['sphere', 'cube', 'heart', 'galaxy', 'dna', 'torus', 'star', 'wave', 'pyramid', 'infinity', 'firework', 'tornado'];
+        return ['sphere', 'cube', 'heart', 'galaxy', 'dna', 'helix', 'torus', 'saturn', 'star', 'wave', 'pyramid', 'infinity', 'firework', 'tornado'];
     }
 }
